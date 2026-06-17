@@ -3,23 +3,23 @@
   font-family: "Noto Sans JP", "Yu Gothic", "Hiragino Sans", system-ui, sans-serif;
   --bg: #f6f8fb;
   --surface: #ffffff;
-  --surface-soft: #f0f5f7;
+  --surface-soft: #f8fbff;
   --ink: #18212f;
   --muted: #5e6b7c;
   --line: #d9e1e8;
-  --brand: #236b79;
-  --brand-strong: #174e59;
+  --brand: #1d4ed8;
+  --brand-strong: #1e3a8a;
   --accent: #b55d2f;
   --green: #377f5c;
   --red: #b23b4a;
   --yellow: #c18a21;
-  --purpose: #236b79;
+  --purpose: #1d4ed8;
   --principle: #6a5aa8;
   --practice: #377f5c;
   --case: #b55d2f;
   --dialogue: #9a6c1f;
   --action: #b23b4a;
-  --shadow: 0 12px 28px rgba(24, 33, 47, 0.08);
+  --shadow: 0 8px 20px rgba(24, 33, 47, 0.07);
 }
 
 * {
@@ -118,9 +118,9 @@ legend {
   z-index: 10;
   display: grid;
   grid-template-columns: minmax(240px, 1fr) auto;
-  gap: 14px;
+  gap: 8px 12px;
   align-items: center;
-  padding: 14px 18px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(12px);
@@ -128,12 +128,13 @@ legend {
 
 .appHeader h1 {
   margin: 0;
-  font-size: 1.45rem;
+  font-size: 1.22rem;
 }
 
 .appHeader p {
   margin: 2px 0 0;
   color: var(--muted);
+  line-height: 1.35;
 }
 
 .eyebrow {
@@ -145,8 +146,8 @@ legend {
 
 .headerScore {
   display: grid;
-  min-width: 120px;
-  padding: 8px 12px;
+  min-width: 98px;
+  padding: 6px 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface-soft);
@@ -159,15 +160,21 @@ legend {
 }
 
 .headerScore strong {
-  font-size: 1.8rem;
+  font-size: 1.45rem;
   color: var(--brand-strong);
 }
 
 .headerActions {
   grid-column: 1 / -1;
   display: flex;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
+}
+
+.headerActions button {
+  min-height: 30px;
+  padding: 5px 8px;
+  font-size: 0.84rem;
 }
 
 .primaryButton {
@@ -182,10 +189,30 @@ legend {
 
 .workspace {
   display: grid;
-  grid-template-columns: minmax(260px, 330px) minmax(420px, 1fr) minmax(280px, 360px);
-  gap: 14px;
-  padding: 14px;
+  grid-template-columns: minmax(260px, 0.95fr) minmax(360px, 1.15fr) minmax(260px, 0.95fr);
+  gap: 12px;
+  padding: 12px;
   align-items: start;
+}
+
+.centerRail {
+  order: 1;
+  grid-column: 1 / -1;
+}
+
+.leftRail {
+  order: 2;
+}
+
+.rightRail {
+  order: 3;
+  grid-column: 2 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+
+.rightRail .panel:first-child {
+  grid-column: auto;
 }
 
 .leftRail,
@@ -198,16 +225,16 @@ legend {
 
 .panel {
   display: grid;
-  gap: 12px;
+  gap: 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
   box-shadow: var(--shadow);
-  padding: 14px;
+  padding: 12px;
 }
 
 .mainPanel {
-  min-height: 360px;
+  min-height: 0;
 }
 
 .panelHeader {
@@ -266,7 +293,7 @@ legend {
 
 .tabList {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   overflow-x: auto;
   padding-bottom: 2px;
 }
@@ -276,8 +303,8 @@ legend {
 }
 
 .tabList button.active {
-  background: var(--brand);
-  border-color: var(--brand);
+  background: #0f172a;
+  border-color: #0f172a;
   color: #fff;
 }
 
@@ -287,7 +314,7 @@ legend {
 
 .segmentStack {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   overflow-x: auto;
   padding: 2px 2px 10px;
   scroll-snap-type: x proximity;
@@ -296,12 +323,12 @@ legend {
 
 .segmentCard {
   display: grid;
-  flex: 0 0 clamp(270px, 31vw, 330px);
-  gap: 10px;
+  flex: 0 0 clamp(246px, 28vw, 286px);
+  gap: 8px;
   border: 1px solid var(--line);
-  border-left: 6px solid var(--segment-accent, var(--purpose));
+  border-left: 5px solid var(--segment-accent, var(--purpose));
   border-radius: 8px;
-  padding: 12px;
+  padding: 10px;
   background: linear-gradient(180deg, var(--segment-tint, #f7fbfc) 0%, #fff 64%);
   color: var(--ink);
   scroll-snap-align: start;
@@ -359,7 +386,7 @@ legend {
 
 .segmentCard[data-color="purpose"] {
   --segment-accent: var(--purpose);
-  --segment-tint: #eaf5f4;
+  --segment-tint: #dbeafe;
 }
 
 .ganttBar[data-color="purpose"],
@@ -375,7 +402,7 @@ legend {
 .segmentSelect {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
   align-items: center;
   text-align: left;
@@ -387,8 +414,8 @@ legend {
 .segmentNo {
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   background: #fff;
   border: 1px solid color-mix(in srgb, var(--segment-accent, var(--brand)) 38%, var(--line));
@@ -401,16 +428,23 @@ legend {
   display: block;
 }
 
+.segmentSelect strong {
+  font-size: 0.95rem;
+  line-height: 1.35;
+}
+
 .segmentSelect small {
   color: var(--muted);
   margin-top: 2px;
+  font-size: 0.78rem;
 }
 
 .segmentFacts {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 6px;
   margin: 0;
+  font-size: 0.86rem;
 }
 
 .segmentFacts div {
@@ -420,28 +454,43 @@ legend {
 
 .segmentFacts dt {
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 800;
 }
 
 .segmentFacts dd {
   margin: 0;
+  line-height: 1.42;
+}
+
+.segmentFacts div:nth-child(n + 3) dd {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 .cardActions,
 .inlineActions {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
   align-items: end;
 }
 
 .durationInput {
-  width: 96px;
+  width: 78px;
 }
 
 .durationInput input {
-  height: 36px;
+  height: 30px;
+  padding: 4px 7px;
+}
+
+.cardActions button {
+  min-height: 30px;
+  padding: 4px 7px;
+  font-size: 0.8rem;
 }
 
 .ganttScale {
@@ -655,16 +704,33 @@ legend {
 
 @media (max-width: 1180px) {
   .workspace {
-    grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+    grid-template-columns: 1fr;
+  }
+
+  .centerRail {
+    order: 1;
+    grid-column: 1 / -1;
+  }
+
+  .leftRail {
+    order: 2;
+    grid-column: 1 / -1;
+    grid-template-columns: minmax(0, 1.08fr) minmax(260px, 0.92fr);
+    align-items: start;
   }
 
   .rightRail {
+    order: 3;
     grid-column: 1 / -1;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .rightRail .panel:first-child {
-    grid-column: 1 / -1;
+    grid-column: auto;
+  }
+
+  .segmentCard {
+    flex-basis: clamp(250px, 32vw, 282px);
   }
 }
 
@@ -675,8 +741,13 @@ legend {
   }
 
   .workspace,
+  .leftRail,
   .rightRail {
     grid-template-columns: 1fr;
+  }
+
+  .segmentCard {
+    flex-basis: min(78vw, 270px);
   }
 
   .fieldGrid,
