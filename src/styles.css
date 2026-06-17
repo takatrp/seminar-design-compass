@@ -286,59 +286,84 @@ legend {
 }
 
 .segmentStack {
-  display: grid;
-  gap: 10px;
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 2px 2px 10px;
+  scroll-snap-type: x proximity;
+  scrollbar-color: rgba(35, 107, 121, 0.38) var(--surface-soft);
 }
 
 .segmentCard {
   display: grid;
+  flex: 0 0 clamp(270px, 31vw, 330px);
   gap: 10px;
   border: 1px solid var(--line);
-  border-left: 6px solid var(--purpose);
+  border-left: 6px solid var(--segment-accent, var(--purpose));
   border-radius: 8px;
   padding: 12px;
-  background: #fff;
+  background: linear-gradient(180deg, var(--segment-tint, #f7fbfc) 0%, #fff 64%);
+  color: var(--ink);
+  scroll-snap-align: start;
 }
 
-.segmentCard[data-color="principle"],
+.segmentCard[data-color="principle"] {
+  --segment-accent: var(--principle);
+  --segment-tint: #f2f0fb;
+}
+
 .ganttBar[data-color="principle"],
 .miniTrack span[data-color="principle"] {
-  border-left-color: var(--principle);
   background-color: var(--principle);
 }
 
-.segmentCard[data-color="practice"],
+.segmentCard[data-color="practice"] {
+  --segment-accent: var(--practice);
+  --segment-tint: #edf7f1;
+}
+
 .ganttBar[data-color="practice"],
 .miniTrack span[data-color="practice"] {
-  border-left-color: var(--practice);
   background-color: var(--practice);
 }
 
-.segmentCard[data-color="case"],
+.segmentCard[data-color="case"] {
+  --segment-accent: var(--case);
+  --segment-tint: #fff3ed;
+}
+
 .ganttBar[data-color="case"],
 .miniTrack span[data-color="case"] {
-  border-left-color: var(--case);
   background-color: var(--case);
 }
 
-.segmentCard[data-color="dialogue"],
+.segmentCard[data-color="dialogue"] {
+  --segment-accent: var(--dialogue);
+  --segment-tint: #fff8e8;
+}
+
 .ganttBar[data-color="dialogue"],
 .miniTrack span[data-color="dialogue"] {
-  border-left-color: var(--dialogue);
   background-color: var(--dialogue);
 }
 
-.segmentCard[data-color="action"],
+.segmentCard[data-color="action"] {
+  --segment-accent: var(--action);
+  --segment-tint: #fff0f2;
+}
+
 .ganttBar[data-color="action"],
 .miniTrack span[data-color="action"] {
-  border-left-color: var(--action);
   background-color: var(--action);
 }
 
-.segmentCard[data-color="purpose"],
+.segmentCard[data-color="purpose"] {
+  --segment-accent: var(--purpose);
+  --segment-tint: #eaf5f4;
+}
+
 .ganttBar[data-color="purpose"],
 .miniTrack span[data-color="purpose"] {
-  border-left-color: var(--purpose);
   background-color: var(--purpose);
 }
 
@@ -365,7 +390,9 @@ legend {
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: var(--surface-soft);
+  background: #fff;
+  border: 1px solid color-mix(in srgb, var(--segment-accent, var(--brand)) 38%, var(--line));
+  color: var(--segment-accent, var(--brand-strong));
   font-weight: 900;
 }
 
