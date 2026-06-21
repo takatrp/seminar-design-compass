@@ -153,13 +153,14 @@ export function SegmentEditor({ plan, pack, segment, onChange }: Props) {
       </label>
       <label>
         素材ID
-        <input
+        <textarea
+          rows={2}
           value={segment.assetIds.join(", ")}
           onChange={(event) =>
             onChange({
               ...segment,
               assetIds: event.target.value
-                .split(",")
+                .split(/[,\n]/)
                 .map((item) => item.trim())
                 .filter(Boolean)
             })
@@ -199,7 +200,11 @@ export function SegmentEditor({ plan, pack, segment, onChange }: Props) {
         </label>
         <label>
           成果物
-          <input value={segment.discussion?.output ?? ""} onChange={(event) => updateDiscussion({ output: event.target.value })} />
+          <textarea
+            rows={2}
+            value={segment.discussion?.output ?? ""}
+            onChange={(event) => updateDiscussion({ output: event.target.value })}
+          />
         </label>
       </fieldset>
     </section>

@@ -112,7 +112,8 @@ export function SeminarForm({
         </label>
         <label>
           会場レイアウト
-          <input
+          <textarea
+            rows={2}
             value={plan.seminar.venue.roomLayout ?? ""}
             onChange={(event) => updateVenue({ roomLayout: event.target.value })}
           />
@@ -234,14 +235,16 @@ export function SeminarForm({
           </label>
           <label>
             目的
-            <input
+            <textarea
+              rows={2}
               value={plan.seminar.discussion.purpose}
               onChange={(event) => updateDiscussion({ purpose: event.target.value })}
             />
           </label>
           <label>
             成果物
-            <input
+            <textarea
+              rows={2}
               value={plan.seminar.discussion.expectedOutput}
               onChange={(event) => updateDiscussion({ expectedOutput: event.target.value })}
             />
