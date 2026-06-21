@@ -21,8 +21,7 @@ interface Props {
 function linesToArray(value: string): string[] {
   return value
     .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
+    .map((line) => line.trimEnd());
 }
 
 export function SeminarForm({
