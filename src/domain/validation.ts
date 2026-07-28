@@ -620,8 +620,10 @@ export function migrateLegacyPlan(
     (role) => AUDIENCE_ROLE_LABELS[role] || role
   );
   const maturity = AUDIENCE_MATURITY_LABELS[text(audience.maturity)] || text(audience.maturity);
+  const legacyHost = text(seminar.host).trim();
   const addCustom = customFieldFactory();
   const customFields = [
+    addCustom("旧主催", legacyHost && legacyHost !== "松本" ? legacyHost : ""),
     addCustom("旧開催日時", dateParts.unparsed),
     addCustom("サブメッセージ", uniqueStrings(seminar.subMessages).join("\n")),
     addCustom("終了後の行動", text(seminar.desiredAction)),
@@ -659,7 +661,7 @@ export function migrateLegacyPlan(
     title: text(raw.title, "読み込んだセミナー"),
     createdAt: timestamp,
     updatedAt: text(raw.updatedAt, timestamp),
-    instructor: text(seminar.host).trim() || "松本",
+    instructor: "松本",
     metadata: {
       date: dateParts.date,
       startTime: text(seminar.startTime) || dateParts.time || "13:30",

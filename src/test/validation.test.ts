@@ -164,12 +164,17 @@ describe("v2 JSON import/export", () => {
 describe("v1 migration", () => {
   it("旧planを非破壊でv2へ移し、柱・休憩・台本・問い・添付を保持する", () => {
     const legacy = legacyPlan();
+    legacy.seminar.host = "TKC";
     const snapshot = structuredClone(legacy);
     const migrated = migrateLegacyPlan(legacy);
 
     expect(legacy).toEqual(snapshot);
     expect(migrated.plan.version).toBe("2.0.0");
     expect(migrated.plan.id).toBe("legacy-plan");
+    expect(migrated.plan.instructor).toBe("松本");
+    expect(migrated.plan.metadata.customFields).toContainEqual(
+      expect.objectContaining({ label: "旧主催", value: "TKC" })
+    );
     expect(migrated.plan.metadata.date).toBe("2026-08-05");
     expect(migrated.plan.metadata.startTime).toBe("14:00");
     expect(migrated.plan.metadata.hasBreak).toBe(true);

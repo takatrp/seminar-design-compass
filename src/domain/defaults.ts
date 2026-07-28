@@ -196,7 +196,9 @@ export function normalizeImportedPlan(plan: SeminarPlan): SeminarPlan {
     ...plan,
     version: PLAN_VERSION,
     updatedAt: nowIso(),
-    instructor: plan.instructor || "松本",
+    instructor: plan.instructor.trim().toUpperCase() === "TKC"
+      ? "松本"
+      : plan.instructor || "松本",
     metadata: {
       ...createDefaultMetadata(),
       ...plan.metadata,
