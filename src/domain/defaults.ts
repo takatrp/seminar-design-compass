@@ -1,12 +1,18 @@
-import { genericContextPack } from "../contextPacks/generic";
-import { tkcContextPack } from "../contextPacks/tkc";
 import { autoSchedule } from "./scheduling";
-import type { ContextPack, SeminarMeta, SeminarPlan, SeminarTemplate, Segment } from "./types";
+import {
+  PLAN_VERSION,
+  type CustomMetaField,
+  type Pillar,
+  type SeminarMetadata,
+  type SeminarPlan,
+  type Segment
+} from "./types";
 
 export function makeId(prefix: string): string {
-  const random = typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
-    : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const random =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   return `${prefix}-${random}`;
 }
 
@@ -14,237 +20,193 @@ export function nowIso(): string {
   return new Date().toISOString();
 }
 
-export function createDefaultSeminarMeta(): SeminarMeta {
+export function createDefaultMetadata(): SeminarMetadata {
   return {
-    dateTime: "",
+    date: "",
     startTime: "13:30",
-    venue: {
-      type: "onsite",
-      name: "",
-      roomLayout: ""
+    totalDurationMin: 90,
+    hasBreak: false,
+    breakDurationMin: 10,
+    breakAfterSegmentId: undefined,
+    breakLabel: "休憩",
+    location: "",
+    audience: "",
+    purpose: "",
+    customFields: []
+  };
+}
+
+export function createDefaultPillars(): Pillar[] {
+  return [
+    {
+      id: "introduction",
+      title: "導入・問題提起",
+      description: "参加者の現在地と、このテーマを扱う理由をそろえる",
+      color: "#2563eb",
+      order: 0
     },
-    host: "",
-    coHosts: [],
-    durationMin: 120,
-    mainMessage: "明日から実践に移す判断軸と最初の一歩を持ち帰る",
-    subMessages: ["現状をそろえる", "実践手順を具体化する", "終了後の行動を決める"],
-    desiredAction: "まず1社・1テーマを選び、次回面談で実践する",
-    audience: {
-      roles: ["firmOwner", "firmStaff"],
-      maturity: "mixed",
-      painPoints: ["実践に落ちる設計が難しい"],
-      objections: ["聞いて終わりになりやすい"]
+    {
+      id: "understanding",
+      title: "理解・判断軸",
+      description: "知識や考え方を、判断に使える形で伝える",
+      color: "#7c3aed",
+      order: 1
     },
-    discussion: {
-      enabled: true,
-      format: "group",
-      purpose: "参加者の現在地をそろえ、実践の障害を言語化する",
-      expectedOutput: "明日から試す行動案"
+    {
+      id: "practice",
+      title: "事例・実践",
+      description: "事例、デモ、ワークを通して自分の現場へ置き換える",
+      color: "#059669",
+      order: 2
     },
-    notes: ""
-  };
-}
-
-function cloneSegmentTemplate(segment: Omit<Segment, "id" | "startMin">): Segment {
-  return {
-    ...structuredClone(segment),
-    id: makeId("segment"),
-    startMin: 0,
-    speakerNotes: { ...segment.speakerNotes },
-    assetIds: [...segment.assetIds]
-  };
-}
-
-export function ensureSpeakerNotesForRoles(segment: Segment, roles: { id: string }[]): Segment {
-  const speakerNotes = { ...segment.speakerNotes };
-  roles.forEach((role) => {
-    if (!(role.id in speakerNotes)) speakerNotes[role.id] = "";
-  });
-  return { ...segment, speakerNotes };
-}
-
-export function createPlanFromTemplate(
-  contextPack: ContextPack,
-  template: SeminarTemplate,
-  preserve?: Partial<SeminarPlan>
-): SeminarPlan {
-  const createdAt = preserve?.createdAt ?? nowIso();
-  const baseSeminar = createDefaultSeminarMeta();
-  const seminar: SeminarMeta = {
-    ...baseSeminar,
-    ...template.seminarPatch,
-    venue: { ...baseSeminar.venue, ...template.seminarPatch.venue },
-    audience: { ...baseSeminar.audience, ...template.seminarPatch.audience },
-    discussion: { ...baseSeminar.discussion, ...template.seminarPatch.discussion },
-    coHosts: template.seminarPatch.coHosts ?? baseSeminar.coHosts,
-    subMessages: template.seminarPatch.subMessages ?? baseSeminar.subMessages,
-    durationMin: template.recommendedDurationMin
-  };
-  const roles = structuredClone(contextPack.defaultRoles);
-  const segments = autoSchedule(template.segments.map(cloneSegmentTemplate)).map((segment) =>
-    ensureSpeakerNotesForRoles(segment, roles)
-  );
-  return {
-    version: "1.0.0",
-    id: preserve?.id ?? makeId("plan"),
-    title: preserve?.title || template.label,
-    createdAt,
-    updatedAt: nowIso(),
-    contextPackId: contextPack.id,
-    seminar,
-    roles,
-    segments,
-    assets: preserve?.assets ?? [],
-    selectedSegmentId: segments[0]?.id,
-    view: preserve?.view ?? "agenda"
-  };
-}
-
-export function createDefaultPlan(contextPack: ContextPack = tkcContextPack): SeminarPlan {
-  const template = contextPack.templates[0] ?? genericContextPack.templates[0];
-  return createPlanFromTemplate(contextPack, template);
-}
-
-export function applyTemplateToPlan(plan: SeminarPlan, contextPack: ContextPack, template: SeminarTemplate): SeminarPlan {
-  const next = createPlanFromTemplate(contextPack, template, {
-    id: plan.id,
-    title: plan.title || template.label,
-    createdAt: plan.createdAt,
-    assets: plan.assets,
-    view: plan.view
-  });
-  return {
-    ...next,
-    seminar: {
-      ...next.seminar,
-      dateTime: plan.seminar.dateTime,
-      startTime: plan.seminar.startTime,
-      host: plan.seminar.host,
-      venue: {
-        ...next.seminar.venue,
-        name: plan.seminar.venue.name,
-        address: plan.seminar.venue.address,
-        onlineUrlLabel: plan.seminar.venue.onlineUrlLabel,
-        roomLayout: plan.seminar.venue.roomLayout
-      }
+    {
+      id: "action",
+      title: "まとめ・行動",
+      description: "持ち帰りと、セミナー後の最初の行動を明確にする",
+      color: "#ea580c",
+      order: 3
     }
-  };
+  ];
 }
 
-export function createBlankSegment(plan: SeminarPlan, contextPack: ContextPack): Segment {
-  const firstRoleId = plan.roles[0]?.id ?? contextPack.defaultRoles[0]?.id ?? "facilitator";
-  const firstPillarId = contextPack.pillars[0]?.id ?? "purpose";
-  return ensureSpeakerNotesForRoles(
+function defaultSegments(pillars: Pillar[]): Segment[] {
+  const pillarId = (index: number) => pillars[index]?.id ?? pillars[0]?.id ?? "";
+  return autoSchedule([
     {
       id: makeId("segment"),
-      title: "追加区間",
+      title: "導入：今日の目的と到達点",
       startMin: 0,
       durationMin: 10,
-      leadRoleId: firstRoleId,
-      pillarId: firstPillarId,
-      type: "discussion",
-      audienceMaturity: plan.seminar.audience.maturity,
-      goal: "",
-      keyQuestion: "この区間で何を問い、何を持ち帰ってもらうかを設定してください。",
-      speakerNotes: {},
-      participantAction: "",
-      takeaway: "",
-      assetIds: [],
-      discussion: {
-        enabled: true,
-        format: plan.seminar.discussion.format,
-        question: "参加者の現場では何が障害になっていますか。",
-        output: "実践に移すための課題メモ"
-      }
+      pillarId: pillarId(0),
+      type: "opening",
+      goal: "参加者と今日のゴールを共有する",
+      question: "今日の終了時に、何を持ち帰ってほしいですか。",
+      script: "",
+      transition: "それでは、テーマの背景から見ていきます。",
+      takeaway: "今日扱う問いと到達点",
+      notes: "",
+      attachments: []
     },
-    plan.roles
-  );
+    {
+      id: makeId("segment"),
+      title: "背景と基本の考え方",
+      startMin: 0,
+      durationMin: 25,
+      pillarId: pillarId(1),
+      type: "lecture",
+      goal: "テーマを理解するための判断軸を伝える",
+      question: "なぜ今、このテーマを扱う必要がありますか。",
+      script: "",
+      transition: "考え方を、具体的な事例に置き換えてみます。",
+      takeaway: "判断に使える基本の観点",
+      notes: "",
+      attachments: []
+    },
+    {
+      id: makeId("segment"),
+      title: "事例と実践",
+      startMin: 0,
+      durationMin: 40,
+      pillarId: pillarId(2),
+      type: "case",
+      goal: "具体例から実践のイメージを持ってもらう",
+      question: "自分の現場では、どこから試せそうですか。",
+      script: "",
+      transition: "最後に、今日の内容を行動へつなげます。",
+      takeaway: "現場で使える具体的な進め方",
+      notes: "",
+      attachments: []
+    },
+    {
+      id: makeId("segment"),
+      title: "まとめ：最初の一歩",
+      startMin: 0,
+      durationMin: 15,
+      pillarId: pillarId(3),
+      type: "closing",
+      goal: "セミナー後の最初の行動を決めてもらう",
+      question: "明日、最初に何をしますか。",
+      script: "",
+      transition: "",
+      takeaway: "自分で決めた最初の一歩",
+      notes: "",
+      attachments: []
+    }
+  ]);
 }
 
-export function changeContextPack(plan: SeminarPlan, contextPack: ContextPack): SeminarPlan {
-  const validPillars = new Set(contextPack.pillars.map((pillar) => pillar.id));
-  const fallbackPillar = contextPack.pillars[0]?.id ?? "purpose";
-  const defaultRole = contextPack.defaultRoles[0]?.id ?? plan.roles[0]?.id ?? "facilitator";
-  const validRoles = new Set(contextPack.defaultRoles.map((role) => role.id));
-  const segments = autoSchedule(
-    plan.segments.map((segment) =>
-      ensureSpeakerNotesForRoles(
-        {
-          ...segment,
-          pillarId: validPillars.has(segment.pillarId) ? segment.pillarId : fallbackPillar,
-          leadRoleId: validRoles.has(segment.leadRoleId) ? segment.leadRoleId : defaultRole
-        },
-        contextPack.defaultRoles
-      )
-    )
-  );
+export function createDefaultPlan(): SeminarPlan {
+  const timestamp = nowIso();
+  const pillars = createDefaultPillars();
+  const segments = defaultSegments(pillars);
   return {
-    ...plan,
-    updatedAt: nowIso(),
-    contextPackId: contextPack.id,
-    roles: structuredClone(contextPack.defaultRoles),
+    version: PLAN_VERSION,
+    id: makeId("plan"),
+    title: "新しいセミナー",
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    instructor: "松本",
+    metadata: createDefaultMetadata(),
+    pillars,
     segments,
-    selectedSegmentId: segments.some((segment) => segment.id === plan.selectedSegmentId)
-      ? plan.selectedSegmentId
-      : segments[0]?.id
+    selectedSegmentId: segments[0]?.id,
+    view: "cards"
   };
 }
 
-export function normalizeImportedPlan(plan: SeminarPlan, contextPack: ContextPack): SeminarPlan {
-  const baseSeminar = createDefaultSeminarMeta();
-  const rawSeminar = plan.seminar ?? baseSeminar;
-  const seminar: SeminarMeta = {
-    ...baseSeminar,
-    ...rawSeminar,
-    venue: { ...baseSeminar.venue, ...(rawSeminar.venue ?? {}) },
-    audience: {
-      ...baseSeminar.audience,
-      ...(rawSeminar.audience ?? {}),
-      roles: Array.isArray(rawSeminar.audience?.roles) ? rawSeminar.audience.roles : baseSeminar.audience.roles,
-      painPoints: Array.isArray(rawSeminar.audience?.painPoints)
-        ? rawSeminar.audience.painPoints
-        : baseSeminar.audience.painPoints,
-      objections: Array.isArray(rawSeminar.audience?.objections)
-        ? rawSeminar.audience.objections
-        : baseSeminar.audience.objections
-    },
-    discussion: { ...baseSeminar.discussion, ...(rawSeminar.discussion ?? {}) },
-    coHosts: Array.isArray(rawSeminar.coHosts) ? rawSeminar.coHosts : baseSeminar.coHosts,
-    subMessages: Array.isArray(rawSeminar.subMessages) ? rawSeminar.subMessages : baseSeminar.subMessages
+export function createBlankSegment(plan: SeminarPlan): Segment {
+  return {
+    id: makeId("segment"),
+    title: "新しいカード",
+    startMin: 0,
+    durationMin: 10,
+    pillarId: plan.pillars[0]?.id ?? "",
+    type: "lecture",
+    goal: "",
+    question: "",
+    script: "",
+    transition: "",
+    takeaway: "",
+    notes: "",
+    attachments: []
   };
-  const roles = plan.roles?.length ? plan.roles : structuredClone(contextPack.defaultRoles);
-  const validPillars = new Set(contextPack.pillars.map((pillar) => pillar.id));
-  const fallbackPillar = contextPack.pillars[0]?.id ?? "purpose";
-  const validRoles = new Set(roles.map((role) => role.id));
-  const fallbackRole = roles[0]?.id ?? "facilitator";
-  const segments = autoSchedule(
-    (plan.segments ?? []).map((segment) =>
-      ensureSpeakerNotesForRoles(
-        {
-          ...segment,
-          id: segment.id || makeId("segment"),
-          pillarId: validPillars.has(segment.pillarId) ? segment.pillarId : fallbackPillar,
-          leadRoleId: validRoles.has(segment.leadRoleId) ? segment.leadRoleId : fallbackRole,
-          assetIds: Array.isArray(segment.assetIds) ? segment.assetIds : [],
-          speakerNotes: segment.speakerNotes ?? {},
-          audienceMaturity: segment.audienceMaturity ?? seminar.audience.maturity
-        },
-        roles
-      )
-    )
-  );
+}
+
+export function createBlankPillar(order: number): Pillar {
+  return {
+    id: makeId("pillar"),
+    title: "新しい柱",
+    description: "",
+    color: "#64748b",
+    order
+  };
+}
+
+export function createBlankCustomMetaField(): CustomMetaField {
+  return {
+    id: makeId("meta"),
+    label: "",
+    value: ""
+  };
+}
+
+export function normalizeImportedPlan(plan: SeminarPlan): SeminarPlan {
+  const segments = autoSchedule(plan.segments ?? []);
   return {
     ...plan,
-    version: "1.0.0",
+    version: PLAN_VERSION,
     updatedAt: nowIso(),
-    contextPackId: contextPack.id,
-    seminar,
-    roles,
+    instructor: plan.instructor || "松本",
+    metadata: {
+      ...createDefaultMetadata(),
+      ...plan.metadata,
+      customFields: Array.isArray(plan.metadata?.customFields) ? plan.metadata.customFields : []
+    },
+    pillars: Array.isArray(plan.pillars) ? plan.pillars : [],
     segments,
-    assets: plan.assets ?? [],
     selectedSegmentId: segments.some((segment) => segment.id === plan.selectedSegmentId)
       ? plan.selectedSegmentId
       : segments[0]?.id,
-    view: plan.view ?? "agenda"
+    view: plan.view ?? "cards"
   };
 }

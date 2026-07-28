@@ -1,78 +1,83 @@
 import { describe, expect, it } from "vitest";
-import { tkcContextPack } from "../contextPacks/tkc";
-import { createPlanFromTemplate } from "../domain/defaults";
+import { createDefaultPlan } from "../domain/defaults";
 import {
+  formatClockRange,
   generateAllOutputs,
-  generateAgendaTable,
-  generateDiscussionSheet,
-  generateFollowUpEmail,
-  generatePlanningMemo,
-  generateRoleNotes
+  generateFacilitatorScript,
+  generateMarkdown
 } from "../domain/exporters";
-import { evaluatePlan } from "../domain/scoring";
+import { buildTimeline } from "../domain/scheduling";
 
 function plan() {
-  const base = createPlanFromTemplate(tkcContextPack, tkcContextPack.templates[0]);
-  base.title = "月次決算体制セミナー";
-  base.seminar.host = "松本会計";
-  base.seminar.mainMessage = "月次決算を経営者の意思決定につなげる";
-  return base;
+  const target = createDefaultPlan();
+  target.title = "月次決算セミナー";
+  target.instructor = "松本";
+  target.metadata.date = "2026-08-05";
+  target.metadata.startTime = "13:30";
+  target.metadata.location = "神戸会場";
+  target.metadata.audience = "経営者";
+  target.metadata.purpose = "判断軸と最初の行動を持ち帰る";
+  target.metadata.hasBreak = true;
+  target.metadata.breakDurationMin = 10;
+  target.metadata.breakAfterSegmentId = target.segments[1].id;
+  target.segments[0].script = "本日はご参加ありがとうございます。";
+  target.segments[0].attachments = [
+    {
+      id: "url-1",
+      type: "url",
+      label: "参考資料",
+      url: "https://example.com/reference"
+    },
+    {
+      id: "image-1",
+      type: "image",
+      fileName: "overview.png",
+      dataUrl: "data:image/png;base64,AA==",
+      alt: "全体像"
+    }
+  ];
+  return target;
 }
 
-describe("exporters", () => {
-  it("企画メモにタイトル、主催者、メインメッセージが含まれる", () => {
+describe("Markdown・台本出力", () => {
+  it("設計書に自由メタデータ、柱、全カード、添付が含まれる", () => {
     const target = plan();
-    const memo = generatePlanningMemo(target, tkcContextPack, evaluatePlan(target, tkcContextPack));
-    expect(memo).toContain(target.title);
-    expect(memo).toContain(target.seminar.host);
-    expect(memo).toContain(target.seminar.mainMessage);
+    target.metadata.customFields.push({
+      id: "meta-1",
+      label: "持ち物",
+      value: "筆記用具"
+    });
+    const markdown = generateMarkdown(target);
+    expect(markdown).toContain(target.title);
+    expect(markdown).toContain("持ち物: 筆記用具");
+    target.pillars.forEach((pillar) => expect(markdown).toContain(pillar.title));
+    target.segments.forEach((segment) => expect(markdown).toContain(segment.title));
+    expect(markdown).toContain("[参考資料](https://example.com/reference)");
+    expect(markdown).toContain("overview.png");
   });
 
-  it("当日進行表に全segmentsが含まれる", () => {
+  it("休憩を台本へ挿入し、後続カードの時刻を繰り下げる", () => {
     const target = plan();
-    const agenda = generateAgendaTable(target, tkcContextPack);
-    target.segments.forEach((segment) => expect(agenda).toContain(segment.title));
+    const timeline = buildTimeline(target);
+    const breakItem = timeline.find((item) => item.kind === "break");
+    const following = timeline[timeline.indexOf(breakItem!) + 1];
+    const script = generateFacilitatorScript(target);
+
+    expect(script).toContain("### 休憩");
+    expect(script).toContain(formatClockRange(target, breakItem!));
+    expect(script).toContain(formatClockRange(target, following));
+    expect(script).toContain("問い:");
+    expect(script).toContain("次へのつなぎ");
+    expect(script).toContain("持ち帰り:");
+    expect(script).toContain("参考資料");
   });
 
-  it("講師別メモがroleごとに分かれる", () => {
-    const target = plan();
-    const notes = generateRoleNotes(target, tkcContextPack);
-    target.roles.forEach((role) => expect(notes).toContain(`## ${role.label}`));
-  });
-
-  it("ディスカッション設問シートがdiscussion区間のみを抽出する", () => {
-    const target = plan();
-    const sheet = generateDiscussionSheet(target);
-    const discussionTitle = target.segments.find((segment) => segment.discussion?.enabled)?.title;
-    const lectureTitle = target.segments.find((segment) => !segment.discussion?.enabled && segment.type === "lecture")?.title;
-    expect(sheet).toContain(discussionTitle);
-    expect(sheet).not.toContain(lectureTitle);
-  });
-
-  it("フォロー文面にdesiredActionが含まれる", () => {
-    const target = plan();
-    expect(generateFollowUpEmail(target)).toContain(target.seminar.desiredAction);
-  });
-
-  it("6種類の出力が順序とファイル名付きで生成される", () => {
-    const target = plan();
-    const outputs = generateAllOutputs(target, tkcContextPack, evaluatePlan(target, tkcContextPack));
-    expect(outputs.map((output) => output.id)).toEqual([
-      "planning",
-      "agenda",
-      "script",
-      "role-notes",
-      "discussion",
-      "follow-up"
-    ]);
+  it("設計書と講師台本の2種類をファイル名付きで生成する", () => {
+    const outputs = generateAllOutputs(plan());
+    expect(outputs.map((output) => output.id)).toEqual(["markdown", "script"]);
     expect(outputs.map((output) => output.fileName)).toEqual([
-      "planning-memo.md",
-      "agenda.md",
-      "facilitator-script.md",
-      "role-notes.md",
-      "discussion-sheet.md",
-      "follow-up-email.md"
+      "seminar-plan.md",
+      "seminar-script.md"
     ]);
-    expect(outputs[2].content).toContain("ファシリテーター台本");
   });
 });

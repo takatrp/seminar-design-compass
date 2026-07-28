@@ -1,40 +1,39 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { DesignChecks } from "./components/DesignChecks";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GanttChart } from "./components/GanttChart";
-import { MetricsPanel } from "./components/MetricsPanel";
-import { OutputPanel } from "./components/OutputPanel";
+import { OverviewSummary } from "./components/OverviewSummary";
+import { PillarManager } from "./components/PillarManager";
+import { ScriptView } from "./components/ScriptView";
 import { SegmentEditor } from "./components/SegmentEditor";
 import { SegmentList } from "./components/SegmentList";
 import { SeminarForm } from "./components/SeminarForm";
-import { contextPacks, getContextPack } from "./contextPacks";
+import { TimeBreakdown } from "./components/TimeBreakdown";
 import {
-  applyTemplateToPlan,
-  changeContextPack,
+  createBlankPillar,
   createBlankSegment,
   createDefaultPlan,
   makeId,
   normalizeImportedPlan,
   nowIso
 } from "./domain/defaults";
-import { generateAllOutputs, generateScriptText } from "./domain/exporters";
-import { calculateMetrics, evaluatePlan } from "./domain/scoring";
-import { autoSchedule, duplicateSegment, moveSegment, removeSegment } from "./domain/scheduling";
+import { generateMarkdown, generateScriptText } from "./domain/exporters";
+import {
+  autoSchedule,
+  duplicateSegment,
+  moveSegment,
+  removeSegment
+} from "./domain/scheduling";
 import { loadStoredState, saveStoredState } from "./domain/storage";
-import type { SeminarPlan, Segment } from "./domain/types";
+import type { Attachment, PlanView, SeminarPlan, Segment } from "./domain/types";
 import { getPlanFileName, parsePlanJson, serializePlan } from "./domain/validation";
 
-function touch(plan: SeminarPlan): SeminarPlan {
-  return { ...plan, updatedAt: nowIso() };
-}
-
-function downloadText(filename: string, content: string, type = "text/plain;charset=utf-8") {
+function downloadText(filename: string, content: string, type: string) {
   const blob = new Blob([content], { type });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = filename;
   anchor.click();
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 async function copyText(text: string) {
@@ -52,232 +51,375 @@ async function copyText(text: string) {
   }
 }
 
+function touch(plan: SeminarPlan): SeminarPlan {
+  return { ...plan, updatedAt: nowIso() };
+}
+
 export function App() {
   const initialState = useMemo(() => loadStoredState(), []);
-  const [plan, setPlan] = useState<SeminarPlan>(() => {
-    if (!initialState) return createDefaultPlan();
-    const pack = getContextPack(initialState.plan.contextPackId);
-    return normalizeImportedPlan(initialState.plan, pack);
-  });
-  const [selectedTemplateId, setSelectedTemplateId] = useState(() => getContextPack(plan.contextPackId).templates[0]?.id ?? "");
+  const [plan, setPlan] = useState<SeminarPlan>(() =>
+    initialState ? normalizeImportedPlan(initialState.plan) : createDefaultPlan()
+  );
+  const [editingSegmentId, setEditingSegmentId] = useState<string>();
   const [notice, setNotice] = useState("");
+  const [autoSaveFailed, setAutoSaveFailed] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const pack = useMemo(() => getContextPack(plan.contextPackId), [plan.contextPackId]);
-  const score = useMemo(() => evaluatePlan(plan, pack), [pack, plan]);
-  const metrics = useMemo(() => calculateMetrics(plan, pack), [pack, plan]);
-  const outputs = useMemo(() => generateAllOutputs(plan, pack, score), [pack, plan, score]);
-  const selectedSegment = plan.segments.find((segment) => segment.id === plan.selectedSegmentId);
+  const selectedSegment = plan.segments.find(
+    (segment) => segment.id === editingSegmentId
+  );
+  const scriptText = useMemo(() => generateScriptText(plan), [plan]);
+  const closeSegmentEditor = useCallback(() => setEditingSegmentId(undefined), []);
 
   useEffect(() => {
-    saveStoredState(plan);
+    try {
+      saveStoredState(plan);
+      setAutoSaveFailed(false);
+    } catch {
+      setAutoSaveFailed((failed) => {
+        if (!failed) {
+          setNotice(
+            "自動保存が端末の容量上限を超えました。JSON保存でデータを残してください。"
+          );
+        }
+        return true;
+      });
+    }
   }, [plan]);
 
   useEffect(() => {
-    if (!pack.templates.some((template) => template.id === selectedTemplateId)) {
-      setSelectedTemplateId(pack.templates[0]?.id ?? "");
-    }
-  }, [pack, selectedTemplateId]);
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(""), 6500);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
 
   const updatePlan = (next: SeminarPlan) => setPlan(touch(next));
 
-  const setView = (view: SeminarPlan["view"]) => updatePlan({ ...plan, view });
-
-  const updateSegment = (nextSegment: Segment, reschedule = true) => {
-    const segments = plan.segments.map((segment) => (segment.id === nextSegment.id ? nextSegment : segment));
-    updatePlan({ ...plan, segments: reschedule ? autoSchedule(segments) : segments });
+  const updateSegment = (nextSegment: Segment) => {
+    setPlan((currentPlan) =>
+      touch({
+        ...currentPlan,
+        segments: autoSchedule(
+          currentPlan.segments.map((segment) =>
+            segment.id === nextSegment.id ? nextSegment : segment
+          )
+        )
+      })
+    );
   };
 
-  const handleContextPackChange = (packId: string) => {
-    const nextPack = getContextPack(packId);
-    updatePlan(changeContextPack(plan, nextPack));
-    setSelectedTemplateId(nextPack.templates[0]?.id ?? "");
-  };
-
-  const handleApplyTemplate = () => {
-    const template = pack.templates.find((item) => item.id === selectedTemplateId) ?? pack.templates[0];
-    if (!template) return;
-    if (!window.confirm("現在の区間構成をテンプレートで置き換えます。よろしいですか。")) return;
-    updatePlan(applyTemplateToPlan(plan, pack, template));
-    setNotice("テンプレートを適用しました。");
+  const appendSegmentAttachments = (
+    segmentId: string,
+    attachments: Attachment[]
+  ) => {
+    setPlan((currentPlan) =>
+      touch({
+        ...currentPlan,
+        segments: currentPlan.segments.map((segment) =>
+          segment.id === segmentId
+            ? {
+                ...segment,
+                attachments: [...segment.attachments, ...attachments]
+              }
+            : segment
+        )
+      })
+    );
   };
 
   const handleAddSegment = () => {
-    const segment = createBlankSegment(plan, pack);
+    const segment = createBlankSegment(plan);
     const segments = autoSchedule([...plan.segments, segment]);
-    updatePlan({ ...plan, segments, selectedSegmentId: segment.id, view: "agenda" });
-  };
-
-  const handleDeleteSegment = (segmentId: string) => {
-    if (!window.confirm("この区間を削除します。よろしいですか。")) return;
-    const index = plan.segments.findIndex((segment) => segment.id === segmentId);
-    const segments = removeSegment(plan.segments, segmentId);
-    const selectedSegmentId = segments[index]?.id ?? segments[index - 1]?.id ?? segments[0]?.id;
-    updatePlan({ ...plan, segments, selectedSegmentId });
-  };
-
-  const handleDuplicateSegment = (segmentId: string) => {
-    const segments = duplicateSegment(plan.segments, segmentId, () => makeId("segment"));
-    const originalIndex = plan.segments.findIndex((segment) => segment.id === segmentId);
-    updatePlan({ ...plan, segments, selectedSegmentId: segments[originalIndex + 1]?.id ?? segmentId });
+    updatePlan({
+      ...plan,
+      segments,
+      selectedSegmentId: segment.id,
+      view: "cards"
+    });
+    setEditingSegmentId(segment.id);
   };
 
   const handleMoveSegment = (segmentId: string, direction: "up" | "down") => {
-    updatePlan({ ...plan, segments: moveSegment(plan.segments, segmentId, direction), selectedSegmentId: segmentId });
+    updatePlan({
+      ...plan,
+      segments: moveSegment(plan.segments, segmentId, direction),
+      selectedSegmentId: segmentId
+    });
   };
 
-  const handleRecalculate = () => {
-    updatePlan({ ...plan, segments: autoSchedule(plan.segments) });
-    setNotice("開始時刻を再計算しました。");
+  const handleDuplicateSegment = (segmentId: string) => {
+    const originalIndex = plan.segments.findIndex((segment) => segment.id === segmentId);
+    const segments = duplicateSegment(plan.segments, segmentId, () => makeId("segment"));
+    const duplicate = segments[originalIndex + 1];
+    updatePlan({
+      ...plan,
+      segments,
+      selectedSegmentId: duplicate?.id ?? segmentId
+    });
+    if (duplicate) setEditingSegmentId(duplicate.id);
   };
 
-  const handleCopy = async (text: string) => {
-    await copyText(text);
-    setNotice("コピーしました。");
+  const handleDeleteSegment = (segmentId: string) => {
+    const segment = plan.segments.find((candidate) => candidate.id === segmentId);
+    if (!window.confirm(`「${segment?.title || "このカード"}」を削除しますか？`)) return;
+    const originalIndex = plan.segments.findIndex((candidate) => candidate.id === segmentId);
+    const segments = removeSegment(plan.segments, segmentId);
+    const selectedSegmentId =
+      segments[originalIndex]?.id ?? segments[originalIndex - 1]?.id ?? segments[0]?.id;
+    updatePlan({
+      ...plan,
+      metadata: {
+        ...plan.metadata,
+        breakAfterSegmentId:
+          plan.metadata.breakAfterSegmentId === segmentId
+            ? undefined
+            : plan.metadata.breakAfterSegmentId
+      },
+      segments,
+      selectedSegmentId
+    });
+    if (editingSegmentId === segmentId) setEditingSegmentId(undefined);
+  };
+
+  const handleDeletePillar = (pillarId: string) => {
+    if (plan.pillars.length <= 1) return;
+    const pillar = plan.pillars.find((candidate) => candidate.id === pillarId);
+    const usedCount = plan.segments.filter((segment) => segment.pillarId === pillarId).length;
+    const message =
+      usedCount > 0
+        ? `「${pillar?.title || "この柱"}」は${usedCount}枚のカードで使用中です。削除すると別の柱へ付け替えます。よろしいですか？`
+        : `「${pillar?.title || "この柱"}」を削除しますか？`;
+    if (!window.confirm(message)) return;
+    const pillars = plan.pillars
+      .filter((candidate) => candidate.id !== pillarId)
+      .map((candidate, order) => ({ ...candidate, order }));
+    const fallbackId = pillars[0]?.id ?? "";
+    const segments = plan.segments.map((segment) =>
+      segment.pillarId === pillarId ? { ...segment, pillarId: fallbackId } : segment
+    );
+    updatePlan({ ...plan, pillars, segments });
   };
 
   const handleJsonSave = () => {
     downloadText(getPlanFileName(), serializePlan(plan), "application/json;charset=utf-8");
-  };
-
-  const handleMarkdownSave = () => {
-    const content = outputs.map((output) => output.content).join("\n\n---\n\n");
-    downloadText("seminar-design-outputs.md", content, "text/markdown;charset=utf-8");
-  };
-
-  const handleTxtSave = () => {
-    downloadText("seminar-script.txt", generateScriptText(plan, pack), "text/plain;charset=utf-8");
+    setNotice("セミナー設計をJSONで保存しました。");
   };
 
   const handleImportFile = async (file: File | undefined) => {
     if (!file) return;
-    const text = await file.text();
-    const parsed = parsePlanJson(text);
+    const parsed = parsePlanJson(await file.text());
     if (!parsed.ok) {
       setNotice(parsed.message);
       return;
     }
-    const importedPack = getContextPack(parsed.plan.contextPackId);
-    updatePlan(normalizeImportedPlan(parsed.plan, importedPack));
-    setNotice("JSONを読み込みました。");
+    const imported = normalizeImportedPlan(parsed.plan);
+    setPlan(imported);
+    setEditingSegmentId(undefined);
+    const warningText =
+      parsed.warnings.length > 0
+        ? `（補完情報 ${parsed.warnings.length}件）`
+        : "";
+    setNotice(
+      parsed.migrated
+        ? `旧形式のJSONを新形式へ移行して読み込みました。${warningText}`
+        : `JSONを読み込みました。${warningText}`
+    );
   };
 
-  const headerScoreLabel = score.contextLabel ?? score.label;
+  const handleCopy = async (text: string) => {
+    await copyText(text);
+    setNotice("クリップボードにコピーしました。");
+  };
+
+  const handleScriptSave = (format: "txt" | "md") => {
+    const markdown = format === "md";
+    downloadText(
+      markdown ? "seminar-script.md" : "seminar-script.txt",
+      scriptText,
+      markdown ? "text/markdown;charset=utf-8" : "text/plain;charset=utf-8"
+    );
+    setNotice(`進行台本を${markdown ? "Markdown" : "TXT"}で保存しました。`);
+  };
+
+  const handleMarkdownSave = () => {
+    downloadText(
+      "seminar-design.md",
+      generateMarkdown(plan),
+      "text/markdown;charset=utf-8"
+    );
+    setNotice("セミナー設計をMarkdownで保存しました。");
+  };
+
+  const setView = (view: PlanView) => updatePlan({ ...plan, view });
+
+  const handlePrint = () => {
+    if (plan.view !== "script") {
+      updatePlan({ ...plan, view: "script" });
+      window.setTimeout(() => window.print(), 120);
+      return;
+    }
+    window.print();
+  };
 
   return (
     <div className="appShell">
       <header className="appHeader">
-        <div>
-          <p className="eyebrow">Seminar Design Compass</p>
-          <h1>セミナー設計コンパス</h1>
-          <p>{plan.title} / {pack.label} / 合計{metrics.totalDuration}分 / 目標との差{metrics.durationDiff}分</p>
+        <div className="headerInner">
+          <div className="headerBrand">
+            <p className="eyebrow">SEMINAR DESIGN COMPASS</p>
+            <h1>{plan.title || "新しいセミナー"}</h1>
+            <p className="headerSubline">
+              {plan.instructor || "講師未設定"}が一人で実施するセミナーを、カードから台本まで一体設計
+            </p>
+            <p className={`saveStatus ${autoSaveFailed ? "isError" : ""}`}>
+              <span aria-hidden="true">{autoSaveFailed ? "!" : "✓"}</span>
+              {autoSaveFailed
+                ? "自動保存できていません。JSON保存してください"
+                : "この端末に自動保存中"}
+            </p>
+          </div>
+          <nav className="headerActions" aria-label="主な操作">
+            <button type="button" className="primaryHeaderButton" onClick={handleAddSegment}>
+              ＋ カード追加
+            </button>
+            <button type="button" onClick={handleJsonSave}>
+              JSON保存
+            </button>
+            <label className="fileAction">
+              JSON読込
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/json,.json"
+                onChange={(event) => {
+                  void handleImportFile(event.target.files?.[0]);
+                  event.target.value = "";
+                }}
+              />
+            </label>
+            <button type="button" onClick={handleMarkdownSave}>
+              Markdown保存
+            </button>
+            <button type="button" onClick={handlePrint}>
+              印刷
+            </button>
+          </nav>
         </div>
-        <div className="headerScore" aria-label={headerScoreLabel}>
-          <span>{headerScoreLabel}</span>
-          <strong>{score.overallScore}</strong>
-        </div>
-        <nav className="headerActions" aria-label="主要操作">
-          <button type="button" onClick={handleApplyTemplate}>テンプレート適用</button>
-          <button type="button" onClick={handleAddSegment}>区間追加</button>
-          <button type="button" onClick={handleRecalculate}>開始時刻を再計算</button>
-          <button type="button" onClick={handleJsonSave}>JSON保存</button>
-          <button type="button" onClick={() => fileInputRef.current?.click()}>JSON読込</button>
-          <button type="button" onClick={handleMarkdownSave}>Markdown保存</button>
-          <button type="button" onClick={() => window.print()}>印刷</button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="application/json,.json"
-            className="visuallyHidden"
-            onChange={(event) => {
-              void handleImportFile(event.target.files?.[0]);
-              event.target.value = "";
-            }}
-          />
-        </nav>
       </header>
+
+      <OverviewSummary plan={plan} />
 
       {notice && (
         <div className="notice" role="status">
-          {notice}
-          <button type="button" onClick={() => setNotice("")}>閉じる</button>
+          <span>{notice}</span>
+          <button type="button" onClick={() => setNotice("")} aria-label="お知らせを閉じる">
+            ×
+          </button>
         </div>
       )}
 
-      <main className="workspace">
-        <SeminarForm
-          plan={plan}
-          pack={pack}
-          packs={contextPacks}
-          selectedTemplateId={selectedTemplateId}
-          onTemplateSelect={setSelectedTemplateId}
-          onTemplateApply={handleApplyTemplate}
-          onPlanChange={updatePlan}
-          onContextPackChange={handleContextPackChange}
-        />
-
-        <section className="centerRail">
-          <div className="tabList" role="tablist" aria-label="中央表示">
+      <main className="mainContent">
+        <div className="viewToolbar">
+          <div className="tabList" role="tablist" aria-label="表示の切り替え">
             {[
-              ["agenda", "全体構成"],
-              ["gantt", "ガントチャート"],
-              ["script", "進行台本"],
-              ["outputs", "出力"]
+              ["cards", "カード設計"],
+              ["gantt", "ガント"],
+              ["script", "進行台本"]
             ].map(([value, label]) => (
               <button
                 key={value}
                 type="button"
+                role="tab"
+                aria-selected={plan.view === value}
                 className={plan.view === value ? "active" : ""}
-                onClick={() => setView(value as SeminarPlan["view"])}
+                onClick={() => setView(value as PlanView)}
               >
                 {label}
               </button>
             ))}
           </div>
-          {plan.view === "agenda" && (
+          <div className="viewActions">
+            {plan.view !== "cards" && (
+              <button type="button" onClick={() => setView("cards")}>
+                設計を編集
+              </button>
+            )}
+            <button type="button" className="primaryButton" onClick={handleAddSegment}>
+              ＋ カード追加
+            </button>
+          </div>
+        </div>
+
+        {(plan.view ?? "cards") === "cards" && (
+          <>
             <SegmentList
               plan={plan}
-              pack={pack}
               selectedSegmentId={plan.selectedSegmentId}
               onSelect={(selectedSegmentId) => updatePlan({ ...plan, selectedSegmentId })}
+              onEdit={setEditingSegmentId}
               onChange={updateSegment}
               onMove={handleMoveSegment}
               onDuplicate={handleDuplicateSegment}
               onDelete={handleDeleteSegment}
             />
-          )}
-          {plan.view === "gantt" && <GanttChart plan={plan} pack={pack} onCopy={handleCopy} />}
-          {plan.view === "script" && (
-            <section className="panel mainPanel">
-              <div className="panelHeader">
-                <h2>進行台本</h2>
-                <div className="inlineActions">
-                  <button type="button" onClick={() => handleCopy(generateScriptText(plan, pack))}>台本コピー</button>
-                  <button type="button" onClick={handleTxtSave}>TXT保存</button>
-                  <button type="button" onClick={() => downloadText("facilitator-script.md", generateScriptText(plan, pack), "text/markdown;charset=utf-8")}>
-                    Markdown保存
-                  </button>
-                </div>
+            <div className="settingsGrid">
+              <SeminarForm
+                plan={plan}
+                autoSaveFailed={autoSaveFailed}
+                onChange={updatePlan}
+                onMakeId={makeId}
+              />
+              <div className="settingsSide">
+                <PillarManager
+                  pillars={plan.pillars}
+                  onChange={(pillars) => updatePlan({ ...plan, pillars })}
+                  onAdd={() =>
+                    updatePlan({
+                      ...plan,
+                      pillars: [...plan.pillars, createBlankPillar(plan.pillars.length)]
+                    })
+                  }
+                  onDelete={handleDeletePillar}
+                />
+                <TimeBreakdown plan={plan} />
               </div>
-              <pre className="outputPre">{generateScriptText(plan, pack)}</pre>
-            </section>
-          )}
-          {plan.view === "outputs" && (
-            <OutputPanel outputs={outputs} onCopy={handleCopy} onSave={(filename, content) => downloadText(filename, content, "text/markdown;charset=utf-8")} />
-          )}
-        </section>
+            </div>
+          </>
+        )}
 
-        <aside className="rightRail">
-          <SegmentEditor
+        {plan.view === "gantt" && (
+          <>
+            <GanttChart plan={plan} onEdit={setEditingSegmentId} />
+            <TimeBreakdown plan={plan} />
+          </>
+        )}
+
+        {plan.view === "script" && (
+          <ScriptView
             plan={plan}
-            pack={pack}
-            segment={selectedSegment}
-            onChange={(segment) => updateSegment(segment, segment.id !== selectedSegment?.id || segment.startMin === selectedSegment?.startMin)}
+            scriptText={scriptText}
+            onCopy={(text) => {
+              void handleCopy(text);
+            }}
+            onSave={handleScriptSave}
           />
-          <DesignChecks score={score} />
-          <MetricsPanel metrics={metrics} />
-        </aside>
+        )}
       </main>
+
+      {selectedSegment && (
+        <SegmentEditor
+          plan={plan}
+          segment={selectedSegment}
+          onChange={updateSegment}
+          onAppendAttachments={(attachments) =>
+            appendSegmentAttachments(selectedSegment.id, attachments)
+          }
+          onClose={closeSegmentEditor}
+          onMakeId={makeId}
+          onNotice={setNotice}
+          autoSaveFailed={autoSaveFailed}
+        />
+      )}
     </div>
   );
 }

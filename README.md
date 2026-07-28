@@ -1,79 +1,64 @@
-# Seminar Design Compass
+# セミナー設計コンパス
 
-`Seminar Design Compass` は、開催情報、対象者、メッセージ、時間配分、ディスカッション、講師役割、台本、チェック、出力文面を一体で設計する日本語UIの静的SPAです。
+松本が一人で実施するセミナーを、カードで組み立て、時間配分を確認し、そのまま進行台本にできるローカル完結型の設計ツールです。
 
-MVPでは外部API、サーバー、ログイン、DBを使いません。入力データはブラウザの `localStorage` と、ユーザーが保存するJSONファイルだけに保持します。
+公開版: https://takatrp.github.io/seminar-design-compass/
 
-## 実行方法
+## 主な機能
 
-Windowsでは、次のファイルをダブルクリックすると起動できます。
+- セミナータイトル、講師名、実施日、開始時刻、全体時間、場所、対象者、目的を自由に編集
+- 休憩の有無、時間、表示名、挿入位置を設定
+- 必要なメタデータ項目を自由に追加・削除
+- セミナーの「柱」を自由に追加・編集・削除・並べ替え
+- カードの追加、編集、複製、削除、並べ替え
+- カードごとに狙い、台本、参加者への問い、次へのつなぎ、持ち帰り、講師メモを設定
+- 各カードへ画像と参考URLを複数添付
+- カード、ガントチャート、進行台本の3表示
+- 全体時間、内容時間、休憩時間、差分、終了予定時刻を即時計算
+- 柱別・区分別の時間配分を表示
+- JSON保存・読込、ブラウザ内自動保存
+- 旧バージョン（v1）のJSONとブラウザ保存データを新形式へ移行
+- 進行台本のコピー、TXT・Markdown保存、印刷
+
+TKC方式への準拠度チェック、役割バランス、複数講師の役割分担、クラウド保存、ログインは使用しません。
+
+## データ保存
+
+入力内容は外部へ送信されません。ブラウザの `localStorage` と、利用者が保存するJSONファイルだけに保持されます。
+
+- 自動保存キー: `seminar-design-compass:v2`
+- JSON形式: `SeminarPlan` version `2.0.0`
+- 旧保存キー `seminar-design-compass:v1` は、初回読込時にv2へ移行
+- 画像は端末内で最大辺1,600px程度に縮小し、Data URLとしてJSONへ埋め込み
+
+画像を多く添付するとJSONファイルが大きくなり、ブラウザの自動保存容量を超えることがあります。その場合も、画面上の「JSON保存」で設計データをファイルとして保存できます。
+
+## ローカルでの起動
+
+Windowsでは、次のファイルをダブルクリックします。
 
 ```txt
 start-seminar-design-compass.bat
 ```
 
-初回だけ依存関係のセットアップを行い、その後ブラウザで `http://127.0.0.1:5173/` を開きます。
+初回だけ依存関係をセットアップし、その後 `http://127.0.0.1:5173/` を開きます。
 
-同じWi-Fi上のスマホ・タブレットから開きたい場合は、起動時の黒い画面に表示される `Phone/tablet URL on the same Wi-Fi` のURLをスマホ側のブラウザで開いてください。Windows Firewallの確認が出た場合は、プライベートネットワークでのアクセスを許可します。
+コマンドで起動する場合:
 
 ```bash
 npm install
 npm run dev
 ```
 
-## ビルド方法
-
-```bash
-npm run build
-```
-
-## テスト方法
+## テストとビルド
 
 ```bash
 npm run test
+npm run build
 ```
 
-## GitHub Pagesでの配信方法
+## GitHub Pages
 
-このフォルダは、GitHub Pagesでそのまま公開できる独立リポジトリとして切り出しています。
+`main` ブランチへpushすると、`.github/workflows/pages.yml` が依存関係の取得、テスト、ビルドを実行し、`dist` をGitHub Pagesへ公開します。
 
-想定リポジトリ名：
-
-```txt
-seminar-design-compass
-```
-
-公開URLの例：
-
-```txt
-https://takatrp.github.io/seminar-design-compass/
-```
-
-手順：
-
-1. GitHubで `seminar-design-compass` リポジトリを作成します。
-2. このフォルダの中身だけをそのリポジトリへpushします。
-3. GitHubの `Settings > Pages` で `GitHub Actions` を選びます。
-4. `main` ブランチへpushすると `.github/workflows/pages.yml` が `npm ci`、`npm run test`、`npm run build` を実行し、`dist` をPagesへ公開します。
-
-Viteの `base` は相対パスにしているため、GitHub Pagesのサブディレクトリ配信でも動作します。
-
-## データ保存方針
-
-- 自動保存キー：`seminar-design-compass:v1`
-- JSON保存形式：`SeminarPlan` をそのまま保存
-- 初期ファイル名：`seminar-design-plan-YYYYMMDD-HHmm.json`
-- 外部送信なし
-
-## context packの追加方法
-
-1. `src/contextPacks` に新しいpackファイルを追加します。
-2. `ContextPack` 型に合わせて、柱、役割、テンプレート、推奨語彙、リスク語彙を定義します。
-3. `src/contextPacks/index.ts` の `contextPacks` に追加します。
-4. 汎用ロジックへ固有ルールを直接書かず、必要なチェックは `src/domain/scoring.ts` からpack IDで分岐できる形にします。
-
-## TKC context pack利用上の注意
-
-TKC向けの柱、テンプレート、推奨語彙、リスク語彙は `src/contextPacks/tkc.ts` に閉じ込めています。画面や汎用ドメインロジックに固定講師名、固定時間、固有の進行名を直書きしないでください。
-
-公開リポジトリや初期データには、機密資料、内部資料画像、個別顧問先情報、APIキー、非公開URLを入れないでください。
+公開リポジトリや初期データへ、機密資料、内部資料画像、個別顧客情報、APIキー、非公開URLを入れないでください。
