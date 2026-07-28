@@ -80,7 +80,15 @@ export function SegmentList({
             >
               <div className="segmentCardTop">
                 <span className="segmentNo">{index + 1}</span>
-                <div className="segmentCardHeading">
+                <div
+                  className="segmentCardHeading"
+                  title="ダブルクリックでカードを編集"
+                  onDoubleClick={(event) => {
+                    event.stopPropagation();
+                    onSelect(segment.id);
+                    onEdit(segment.id);
+                  }}
+                >
                   <span className="timeRange">
                     {addMinutes(plan.metadata.startTime, startMin)}
                     <span aria-hidden="true"> — </span>

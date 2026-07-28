@@ -5,9 +5,16 @@ interface Props {
   autoSaveFailed: boolean;
   onChange: (plan: SeminarPlan) => void;
   onMakeId: (prefix: string) => string;
+  onClose?: () => void;
 }
 
-export function SeminarForm({ plan, autoSaveFailed, onChange, onMakeId }: Props) {
+export function SeminarForm({
+  plan,
+  autoSaveFailed,
+  onChange,
+  onMakeId,
+  onClose
+}: Props) {
   const updatePlan = (patch: Partial<SeminarPlan>) => onChange({ ...plan, ...patch });
   const updateMetadata = (patch: Partial<SeminarPlan["metadata"]>) =>
     onChange({ ...plan, metadata: { ...plan.metadata, ...patch } });
@@ -42,9 +49,16 @@ export function SeminarForm({ plan, autoSaveFailed, onChange, onMakeId }: Props)
           <p className="sectionKicker">BASIC INFO</p>
           <h2>セミナー情報</h2>
         </div>
-        <span className={`privacyPill ${autoSaveFailed ? "isError" : ""}`}>
-          {autoSaveFailed ? "自動保存エラー" : "端末内に自動保存"}
-        </span>
+        <div className="panelHeaderActions">
+          <span className={`privacyPill ${autoSaveFailed ? "isError" : ""}`}>
+            {autoSaveFailed ? "自動保存エラー" : "端末内に自動保存"}
+          </span>
+          {onClose && (
+            <button type="button" className="compactButton" onClick={onClose}>
+              編集を閉じる
+            </button>
+          )}
+        </div>
       </div>
 
       <label className="titleField">

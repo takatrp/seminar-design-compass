@@ -61,15 +61,33 @@ export function App() {
     initialState ? normalizeImportedPlan(initialState.plan) : createDefaultPlan()
   );
   const [editingSegmentId, setEditingSegmentId] = useState<string>();
+  const [seminarInfoOpen, setSeminarInfoOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const [autoSaveFailed, setAutoSaveFailed] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const seminarInfoRef = useRef<HTMLDivElement | null>(null);
+  const seminarInfoButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const selectedSegment = plan.segments.find(
     (segment) => segment.id === editingSegmentId
   );
   const scriptText = useMemo(() => generateScriptText(plan), [plan]);
   const closeSegmentEditor = useCallback(() => setEditingSegmentId(undefined), []);
+
+  const handleToggleSeminarInfo = () => {
+    const nextOpen = !seminarInfoOpen;
+    setSeminarInfoOpen(nextOpen);
+    if (nextOpen) {
+      window.requestAnimationFrame(() => {
+        seminarInfoRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
+  };
+
+  const handleCloseSeminarInfo = () => {
+    setSeminarInfoOpen(false);
+    window.requestAnimationFrame(() => seminarInfoButtonRef.current?.focus());
+  };
 
   useEffect(() => {
     try {
@@ -267,7 +285,20 @@ export function App() {
         <div className="headerInner">
           <div className="headerBrand">
             <p className="eyebrow">SEMINAR DESIGN COMPASS</p>
-            <h1>{plan.title || "新しいセミナー"}</h1>
+            <div className="heroTitleRow">
+              <h1>{plan.title || "新しいセミナー"}</h1>
+              <button
+                ref={seminarInfoButtonRef}
+                type="button"
+                className="heroEditButton"
+                aria-expanded={seminarInfoOpen}
+                aria-controls="seminar-information-panel"
+                onClick={handleToggleSeminarInfo}
+              >
+                <span aria-hidden="true">✎</span>
+                {seminarInfoOpen ? "編集を閉じる" : "セミナー情報を編集"}
+              </button>
+            </div>
             <p className="headerSubline">
               {plan.instructor || "講師未設定"}が一人で実施するセミナーを、カードから台本まで一体設計
             </p>
@@ -308,6 +339,24 @@ export function App() {
       </header>
 
       <OverviewSummary plan={plan} />
+
+      {seminarInfoOpen && (
+        <div
+          ref={seminarInfoRef}
+          id="seminar-information-panel"
+          className="seminarInfoDisclosure"
+          role="region"
+          aria-label="セミナー情報の編集"
+        >
+          <SeminarForm
+            plan={plan}
+            autoSaveFailed={autoSaveFailed}
+            onChange={updatePlan}
+            onMakeId={makeId}
+            onClose={handleCloseSeminarInfo}
+          />
+        </div>
+      )}
 
       {notice && (
         <div className="notice" role="status">
@@ -363,26 +412,18 @@ export function App() {
               onDelete={handleDeleteSegment}
             />
             <div className="settingsGrid">
-              <SeminarForm
-                plan={plan}
-                autoSaveFailed={autoSaveFailed}
-                onChange={updatePlan}
-                onMakeId={makeId}
+              <PillarManager
+                pillars={plan.pillars}
+                onChange={(pillars) => updatePlan({ ...plan, pillars })}
+                onAdd={() =>
+                  updatePlan({
+                    ...plan,
+                    pillars: [...plan.pillars, createBlankPillar(plan.pillars.length)]
+                  })
+                }
+                onDelete={handleDeletePillar}
               />
-              <div className="settingsSide">
-                <PillarManager
-                  pillars={plan.pillars}
-                  onChange={(pillars) => updatePlan({ ...plan, pillars })}
-                  onAdd={() =>
-                    updatePlan({
-                      ...plan,
-                      pillars: [...plan.pillars, createBlankPillar(plan.pillars.length)]
-                    })
-                  }
-                  onDelete={handleDeletePillar}
-                />
-                <TimeBreakdown plan={plan} />
-              </div>
+              <TimeBreakdown plan={plan} />
             </div>
           </>
         )}
